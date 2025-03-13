@@ -1,0 +1,37 @@
+from flask import Flask, request, jsonify, send_file
+import pandas as pd
+from io import BytesIO
+
+app = Flask(__name__)
+
+# Carrega os dados da planilha Excel (banco de dados)
+dados = pd.read_excel('dados.xlsx')
+
+@app.route('/calcular', methods=['POST'])
+def calcular():
+    itens = request.json['itens']
+    total = {'metal': 0, 'madeira': 0, 'plastico': 0}
+    
+    for item in itens:
+        movel = dados[dados['Móvel'] == item['movel']].iloc[0]
+        total['metal'] += movel['Metal (kg)'] * item['quantidade']
+        total['madeira'] += movel['Madeira (kg)'] * item['quantidade']
+        total['plastico'] += movel['Plástico (kg)'] * item['quantidade']
+    
+    # Cria uma planilha Excel com os resultados
+    output = BytesIO()
+    df_resultado = pd.DataFrame([total])
+    df_resultado.to_excel(output, index=False)
+    output.seek(0)
+    
+    return jsonify({
+        **total,
+        "planilha": "/download"
+    })
+
+@app.route('/download')
+def download():
+    return send_file(output, as_attachment=True, download_name='resultado.xlsx')
+
+if __name__ == '__main__':
+    app.run(debug=True)
