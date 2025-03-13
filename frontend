@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Calculadora de Descarte</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .item { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Calcular Descarte de Materiais</h1>
+    <div id="itens">
+        <div class="item">
+            <select class="movel">
+                <option value="Cadeira Fixa">Cadeira Fixa</option>
+                <option value="Mesa de Trabalho">Mesa de Trabalho</option>
+                <option value="Balcão">Balcão</option>
+            </select>
+            <input type="number" class="quantidade" placeholder="Quantidade" min="1">
+        </div>
+    </div>
+    <button onclick="adicionarItem()">Adicionar Mais Itens</button>
+    <button onclick="calcular()">Calcular Totais</button>
+    <div id="resultado"></div>
+
+    <script>
+        function adicionarItem() {
+            const novoItem = document.createElement("div");
+            novoItem.className = "item";
+            novoItem.innerHTML = `
+                <select class="movel">
+                    <option value="Cadeira Fixa">Cadeira Fixa</option>
+                    <option value="Mesa de Trabalho">Mesa de Trabalho</option>
+                    <option value="Balcão">Balcão</option>
+                </select>
+                <input type="number" class="quantidade" placeholder="Quantidade" min="1">
+            `;
+            document.getElementById("itens").appendChild(novoItem);
+        }
+
+        async function calcular() {
+            const itens = Array.from(document.querySelectorAll(".item")).map(item => ({
+                movel: item.querySelector(".movel").value,
+                quantidade: parseInt(item.querySelector(".quantidade").value)
+            }));
+
+            const response = await fetch('/calcular', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itens })
+            });
+
+            const resultado = await response.json();
+            document.getElementById("resultado").innerHTML = `
+                <h3>Totais:</h3>
+                <p>Metal: ${resultado.metal} kg</p>
+                <p>Madeira: ${resultado.madeira} kg</p>
+                <p>Plástico: ${resultado.plastico} kg</p>
+                <a href="${resultado.planilha}" download>Baixar Planilha</a>
+            `;
+        }
+    </script>
+</body>
+</html>
