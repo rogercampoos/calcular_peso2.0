@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sistema de Cálculo de Descarte - COPAT</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background: #cc0000;
+            color: white;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .content {
+            padding: 25px;
+        }
+
+        .item {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f8f8;
+            border-radius: 4px;
+        }
+
+        select, input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #cc0000;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #b30000;
+        }
+
+        #resultado {
+            background: #fff3f3;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            border: 1px solid #ffd6d6;
+        }
+
+        /* Novo estilo para o botão de exclusão */
+        .btn-excluir {
+            background: #cc0000;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        
+        .btn-excluir:hover {
+            background: #b30000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Sistema de Cálculo de Descarte - COPAT</h1>
+            <div class="version">Versão 2025/3306 - 1.19.26</div>
+        </div>
+
+        <div class="content">
+            <div id="itens">
+                <div class="item">
+                    <select class="movel"></select>
+                    <input type="number" class="quantidade" placeholder="Quantidade" min="1">
+                    <button class="btn-excluir" onclick="excluirItem(this)">X</button>
+                </div>
+            </div>
+
+            <div style="text-align: center;">
+                <button onclick="adicionarItem()">+ Adicionar Item</button>
+                <button onclick="calcular()">▶ Calcular Descarte</button>
+            </div>
+
+            <div id="resultado"></div>
+        </div>
+    </div>
+
+    <script>
+        let listaMoveis = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarMoveis();
+        });
+
+        async function carregarMoveis() {
+            try {
+                const response = await fetch('/api/moveis');
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    alert(`Erro: ${data.error || "Falha ao carregar móveis!"}`);
+                    return;
+                }
+                
+                listaMoveis = data;
+                preencherDropdowns();
+            } catch (error) {
+                alert("Falha na conexão com o servidor!");
+                console.error(error);
+            }
+        }
+
+        function preencherDropdowns() {
+            document.querySelectorAll('.movel').forEach(select => {
+                select.innerHTML = listaMoveis.map(movel => 
+                    `<option value="${movel}">${movel}</option>`
+                ).join('');
+            });
+        }
+
+        function adicionarItem() {
+            const novoItem = document.createElement("div");
+            novoItem.className = "item";
+            novoItem.innerHTML = `
+                <select class="movel"></select>
+                <input type="number" class="quantidade" placeholder="Quantidade" min="1">
+                <button class="btn-excluir" onclick="excluirItem(this)">X</button>
+            `;
+            document.getElementById("itens").appendChild(novoItem);
+            preencherDropdowns();
+        }
+
+        // Nova função para excluir itens
+        function excluirItem(botao) {
+            const item = botao.closest('.item');
+            if (document.querySelectorAll('.item').length > 1) {
+                item.remove();
+            } else {
+                alert("É necessário manter pelo menos um item!");
+            }
+        }
+
+        async function calcular() {
+            const itens = Array.from(document.querySelectorAll(".item")).map(item => ({
+                movel: item.querySelector(".movel").value,
+                quantidade: parseInt(item.querySelector(".quantidade").value)
+            }));
+
+            try {
+                const response = await fetch('/calcular', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itens })
+                });
+
+                const resultado = await response.json();
+                
+                if (resultado.error) {
+                    alert(resultado.error);
+                } else {
+                    document.getElementById("resultado").innerHTML = `
+                        <h3>Totais de Descarte:</h3>
+                        <p>► Metal: ${resultado.metal.toFixed(2)} kg</p>
+                        <p>► Madeira: ${resultado.madeira.toFixed(2)} kg</p>
+                        <p>► Plástico: ${resultado.plastico.toFixed(2)} kg</p>
+                        <a href="${resultado.planilha}" download class="btn-download">📥 Baixar Relatório Completo</a>
+                    `;
+                }
+            } catch (error) {
+                alert("Erro ao processar a solicitação!");
+            }
+        }
+    </script>
+</body>
+</html>
