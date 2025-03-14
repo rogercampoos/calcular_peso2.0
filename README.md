@@ -118,6 +118,5 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 ## 🆘 Suporte
 
 Para suporte e dúvidas:
-- Acesse a aplicação em produção: [https://rogercampoos.pythonanywhere.com/](https://rogercampoos.pythonanywhere.com/)
-- Abra uma issue no GitHub
-- Contate a equipe de TI da COPAT
+- entre em contato com rogercampos-10@hotmail.com
+- GitHub: rogercampoos
