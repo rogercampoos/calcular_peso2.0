@@ -3,61 +3,104 @@
 <head>
     <title>Calculadora de Descarte</title>
     <style>
-        body { font-family: Arial; margin: 20px; }
-        .item { margin: 10px 0; }
+        body { font-family: Arial, sans-serif; margin: 20px; padding: 20px; }
+        .item { margin: 15px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        select, input { padding: 8px; margin: 5px; width: 250px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        #resultado { margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; }
     </style>
 </head>
 <body>
-    <h1>Calcular Descarte de Materiais</h1>
+    <h1>Calculadora de Descarte de Materiais</h1>
     <div id="itens">
         <div class="item">
-            <select class="movel">
-                <option value="Cadeira Fixa">Cadeira Fixa</option>
-                <option value="Mesa de Trabalho">Mesa de Trabalho</option>
-                <option value="Balcão">Balcão</option>
-            </select>
+            <select class="movel"></select>
             <input type="number" class="quantidade" placeholder="Quantidade" min="1">
         </div>
     </div>
-    <button onclick="adicionarItem()">Adicionar Mais Itens</button>
-    <button onclick="calcular()">Calcular Totais</button>
+    <button onclick="adicionarItem()">Adicionar Item</button>
+    <button onclick="calcular()">Calcular</button>
     <div id="resultado"></div>
 
     <script>
+        let listaMoveis = [];
+
+        // Carrega os móveis ao iniciar
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarMoveis();
+        });
+
+        // Busca móveis do servidor
+        async function carregarMoveis() {
+            try {
+                const response = await fetch('/api/moveis');
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    alert(`Erro: ${data.error || "Falha ao carregar móveis!"}`);
+                    return;
+                }
+                
+                listaMoveis = data;
+                preencherDropdowns();
+            } catch (error) {
+                alert("Falha na conexão com o servidor!");
+                console.error(error);
+            }
+        }
+
+        // Preenche todos os dropdowns
+        function preencherDropdowns() {
+            document.querySelectorAll('.movel').forEach(select => {
+                select.innerHTML = listaMoveis.map(movel => 
+                    `<option value="${movel}">${movel}</option>`
+                ).join('');
+            });
+        }
+
+        // Adiciona novo item
         function adicionarItem() {
             const novoItem = document.createElement("div");
             novoItem.className = "item";
             novoItem.innerHTML = `
-                <select class="movel">
-                    <option value="Cadeira Fixa">Cadeira Fixa</option>
-                    <option value="Mesa de Trabalho">Mesa de Trabalho</option>
-                    <option value="Balcão">Balcão</option>
-                </select>
+                <select class="movel"></select>
                 <input type="number" class="quantidade" placeholder="Quantidade" min="1">
             `;
             document.getElementById("itens").appendChild(novoItem);
+            preencherDropdowns();
         }
 
+        // Calcula os totais
         async function calcular() {
             const itens = Array.from(document.querySelectorAll(".item")).map(item => ({
                 movel: item.querySelector(".movel").value,
                 quantidade: parseInt(item.querySelector(".quantidade").value)
             }));
 
-            const response = await fetch('/calcular', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ itens })
-            });
+            try {
+                const response = await fetch('/calcular', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itens })
+                });
 
-            const resultado = await response.json();
-            document.getElementById("resultado").innerHTML = `
-                <h3>Totais:</h3>
-                <p>Metal: ${resultado.metal} kg</p>
-                <p>Madeira: ${resultado.madeira} kg</p>
-                <p>Plástico: ${resultado.plastico} kg</p>
-                <a href="${resultado.planilha}" download>Baixar Planilha</a>
-            `;
+                const resultado = await response.json();
+                
+                if (resultado.error) {
+                    alert(resultado.error);
+                } else {
+                    document.getElementById("resultado").innerHTML = `
+                        <h3>Totais:</h3>
+                        <p>Metal: ${resultado.metal.toFixed(2)} kg</p>
+                        <p>Madeira: ${resultado.madeira.toFixed(2)} kg</p>
+                        <p>Plástico: ${resultado.plastico.toFixed(2)} kg</p>
+                        <a href="${resultado.planilha}" download class="btn-download">Baixar Planilha</a>
+                    `;
+                }
+            } catch (error) {
+                alert("Erro ao processar a solicitação!");
+            }
         }
     </script>
 </body>
