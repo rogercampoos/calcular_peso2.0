@@ -43,6 +43,7 @@
             padding: 10px;
             background: #f8f8f8;
             border-radius: 4px;
+            align-items: center;
         }
 
         select, input {
@@ -50,6 +51,7 @@
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            min-width: 200px;
         }
 
         button {
@@ -60,6 +62,7 @@
             border-radius: 4px;
             cursor: pointer;
             margin: 5px;
+            transition: background 0.3s;
         }
 
         button:hover {
@@ -74,7 +77,6 @@
             border: 1px solid #ffd6d6;
         }
 
-        /* Novo estilo para o botão de exclusão */
         .btn-excluir {
             background: #cc0000;
             color: white;
@@ -83,6 +85,7 @@
             border-radius: 4px;
             cursor: pointer;
             margin-left: 10px;
+            transition: background 0.3s;
         }
         
         .btn-excluir:hover {
@@ -99,14 +102,14 @@
 
         <div class="content">
             <div id="itens">
-                <div class="item">
+                <div class="item" id="item-0">
                     <select class="movel"></select>
                     <input type="number" class="quantidade" placeholder="Quantidade" min="1">
                     <button class="btn-excluir" onclick="excluirItem(this)">X</button>
                 </div>
             </div>
 
-            <div style="text-align: center;">
+            <div style="text-align: center; margin-top: 20px;">
                 <button onclick="adicionarItem()">+ Adicionar Item</button>
                 <button onclick="calcular()">▶ Calcular Descarte</button>
             </div>
@@ -117,6 +120,9 @@
 
     <script>
         let listaMoveis = [];
+        let cacheSelecoes = {
+            'item-0': { movel: '', quantidade: '' }
+        };
 
         document.addEventListener('DOMContentLoaded', () => {
             carregarMoveis();
@@ -141,29 +147,76 @@
         }
 
         function preencherDropdowns() {
-            document.querySelectorAll('.movel').forEach(select => {
+            document.querySelectorAll('.item').forEach(item => {
+                const id = item.id;
+                const select = item.querySelector('.movel');
+                const estado = cacheSelecoes[id];
+                
                 select.innerHTML = listaMoveis.map(movel => 
-                    `<option value="${movel}">${movel}</option>`
+                    `<option value="${movel}" ${movel === estado?.movel ? 'selected' : ''}>${movel}</option>`
                 ).join('');
             });
         }
 
         function adicionarItem() {
+            const itemId = `item-${Date.now()}`;
             const novoItem = document.createElement("div");
             novoItem.className = "item";
+            novoItem.id = itemId;
+            
+            // Salvar estados atuais antes de modificar
+            salvarEstadosAtuais();
+            
             novoItem.innerHTML = `
                 <select class="movel"></select>
                 <input type="number" class="quantidade" placeholder="Quantidade" min="1">
                 <button class="btn-excluir" onclick="excluirItem(this)">X</button>
             `;
+
             document.getElementById("itens").appendChild(novoItem);
+            
+            // Inicializar novo item no cache
+            cacheSelecoes[itemId] = { movel: '', quantidade: '' };
+            
+            // Preencher apenas o novo dropdown
             preencherDropdowns();
+            
+            // Restaurar estados anteriores
+            restaurarEstados();
         }
 
-        // Nova função para excluir itens
+        function salvarEstadosAtuais() {
+            document.querySelectorAll('.item').forEach(item => {
+                const id = item.id;
+                const select = item.querySelector('.movel');
+                const input = item.querySelector('.quantidade');
+                
+                cacheSelecoes[id] = {
+                    movel: select.value,
+                    quantidade: input.value
+                };
+            });
+        }
+
+        function restaurarEstados() {
+            document.querySelectorAll('.item').forEach(item => {
+                const id = item.id;
+                const estado = cacheSelecoes[id];
+                
+                if (estado) {
+                    const select = item.querySelector('.movel');
+                    const input = item.querySelector('.quantidade');
+                    
+                    select.value = estado.movel;
+                    input.value = estado.quantidade;
+                }
+            });
+        }
+
         function excluirItem(botao) {
             const item = botao.closest('.item');
             if (document.querySelectorAll('.item').length > 1) {
+                delete cacheSelecoes[item.id];
                 item.remove();
             } else {
                 alert("É necessário manter pelo menos um item!");
@@ -171,10 +224,13 @@
         }
 
         async function calcular() {
-            const itens = Array.from(document.querySelectorAll(".item")).map(item => ({
-                movel: item.querySelector(".movel").value,
-                quantidade: parseInt(item.querySelector(".quantidade").value)
-            }));
+            salvarEstadosAtuais();
+            const itens = Object.values(cacheSelecoes)
+                .filter(estado => estado.movel && estado.quantidade)
+                .map(estado => ({
+                    movel: estado.movel,
+                    quantidade: Number(estado.quantidade)
+                }));
 
             try {
                 const response = await fetch('/calcular', {
