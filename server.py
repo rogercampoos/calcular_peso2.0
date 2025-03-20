@@ -1,68 +1,101 @@
 from flask import Flask, request, jsonify, send_file
 import pandas as pd
+from io import BytesIO
 import os
 
 app = Flask(__name__)
 
-# Carrega a planilha ODS
+# Caminho absoluto para arquivos
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, 'dados.ods')
+RESULT_PATH = os.path.join(BASE_DIR, 'resultado_temp.xlsx')
+
 try:
-    dados = pd.read_excel('dados.ods', engine='odf')
+    dados = pd.read_excel(DATA_PATH, engine='odf')
+    colunas_necessarias = ['Móvel', 'Metal (kg)', 'Madeira (kg)', 'Plástico (kg)']
     
-    # Substitui hífens por 0 e converte para números
-    colunas_materiais = ['Metal (kg)', 'Madeira (kg)', 'Plástico (kg)']
-    dados[colunas_materiais] = dados[colunas_materiais].replace('-', 0).astype(float)
+    if not all(col in dados.columns for col in colunas_necessarias):
+        raise ValueError("Colunas ausentes na planilha!")
     
+    dados[colunas_necessarias[1:]] = dados[colunas_necessarias[1:]].replace('-', 0).astype(float)
+
 except Exception as e:
     print(f"ERRO AO LER PLANILHA: {str(e)}")
     dados = pd.DataFrame()
 
-# Rota principal: exibe o frontend (index.html)
 @app.route('/')
 def index():
-    return send_file('index.html')
+    return send_file(os.path.join(BASE_DIR, 'index.html'))
 
-# Rota para calcular os totais
+@app.route('/api/moveis')
+def listar_moveis():
+    if dados.empty:
+        return jsonify({"error": "Planilha não carregada!"}), 500
+    return jsonify(dados['Móvel'].tolist())
+
 @app.route('/calcular', methods=['POST'])
 def calcular():
     try:
         itens = request.json['itens']
-        total = {'metal': 0, 'madeira': 0, 'plastico': 0}
-        
+        total_geral = {'metal': 0.0, 'madeira': 0.0, 'plastico': 0.0}
+        detalhes = []
+
         if dados.empty:
-            return jsonify({"error": "Planilha de dados não carregada!"}), 500
-        
+            return jsonify({"error": "Planilha não carregada!"}), 500
+
         for item in itens:
-            movel_filtrado = dados[dados['Móvel'] == item['movel']]
-            if movel_filtrado.empty:
-                return jsonify({"error": f"Móvel '{item['movel']}' não existe!"}), 400
+            movel_nome = item['movel']
+            quantidade = item['quantidade']
             
-            movel = movel_filtrado.iloc[0]
-            total['metal'] += movel['Metal (kg)'] * item['quantidade']
-            total['madeira'] += movel['Madeira (kg)'] * item['quantidade']
-            total['plastico'] += movel['Plástico (kg)'] * item['quantidade']
+            movel_data = dados[dados['Móvel'] == movel_nome].iloc[0]
+            
+            metal = round(movel_data['Metal (kg)'] * quantidade, 2)
+            madeira = round(movel_data['Madeira (kg)'] * quantidade, 2)
+            plastico = round(movel_data['Plástico (kg)'] * quantidade, 2)
+            
+            total_geral['metal'] += metal
+            total_geral['madeira'] += madeira
+            total_geral['plastico'] += plastico
+            
+            detalhes.append({
+                'Móvel': movel_nome,
+                'Quantidade': quantidade,
+                'Metal (kg)': metal,
+                'Madeira (kg)': madeira,
+                'Plástico (kg)': plastico
+            })
+
+        df_detalhes = pd.DataFrame(detalhes)
+        df_total = pd.DataFrame([total_geral])
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_detalhes.to_excel(writer, sheet_name='Detalhado', index=False)
+            df_total.to_excel(writer, sheet_name='Resumo', index=False)
         
-        # Salva o resultado em um arquivo temporário
-        df_resultado = pd.DataFrame([total])
-        df_resultado.to_excel('resultado_temp.xlsx', index=False)
+        output.seek(0)
         
+        # Salva o arquivo temporário
+        with open(RESULT_PATH, 'wb') as f:
+            f.write(output.getvalue())
+
         return jsonify({
-            "metal": total['metal'],
-            "madeira": total['madeira'],
-            "plastico": total['plastico'],
+            "metal": total_geral['metal'],
+            "madeira": total_geral['madeira'],
+            "plastico": total_geral['plastico'],
             "planilha": "/download"
         })
-    
+
     except Exception as e:
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
 
-# Rota para baixar a planilha
 @app.route('/download')
 def download():
     try:
         return send_file(
-            'resultado_temp.xlsx',
+            RESULT_PATH,
             as_attachment=True,
-            download_name='resultado_descarte.xlsx'
+            download_name='relatorio_descarte.xlsx'
         )
     except Exception as e:
         return jsonify({"error": "Arquivo não encontrado!"}), 404
